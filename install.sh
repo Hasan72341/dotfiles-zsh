@@ -50,30 +50,55 @@ install_starship_manual() {
     fi
 }
 
+configure_gnome_terminal() {
+    if command -v gsettings &> /dev/null; then
+        echo -e "${BLUE}⚙️  Configuring GNOME Terminal font...${NC}"
+        # Get default profile ID, removing single quotes
+        PROFILE_ID=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'")
+        
+        if [ -n "$PROFILE_ID" ]; then
+            SCHEMA="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/"
+            
+            # Disable system font usage
+            if gsettings set "$SCHEMA" use-system-font false 2>/dev/null; then
+                # Set the Nerd Font
+                gsettings set "$SCHEMA" font 'JetBrainsMono Nerd Font Mono 12' 2>/dev/null
+                echo -e "${GREEN}✅ GNOME Terminal font updated to JetBrainsMono Nerd Font!${NC}"
+            else
+                echo -e "${YELLOW}⚠️  Could not set GNOME Terminal settings (schema not found or DBus issue).${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Could not detect GNOME Terminal profile.${NC}"
+        fi
+    fi
+}
+
 install_nerd_fonts() {
     # Only for Linux in this script (macOS users usually install fonts manually or via cask)
     if [ "$OS" != "Linux" ]; then return; fi
 
     if fc-list : family=JetBrainsMono | grep -q "Nerd Font"; then
         echo -e "${GREEN}✅ JetBrainsMono Nerd Font is already installed.${NC}"
-        return
+    else
+        echo -e "${BLUE}🔤 Installing JetBrainsMono Nerd Font...${NC}"
+        FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip"
+        FONT_DIR="/usr/local/share/fonts/JetBrainsMonoNerd"
+        
+        $SUDO mkdir -p "$FONT_DIR"
+        
+        TMP_DIR=$(mktemp -d)
+        wget -q --show-progress -O "$TMP_DIR/font.zip" "$FONT_URL"
+        unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR"
+        
+        $SUDO mv "$TMP_DIR/"*.ttf "$FONT_DIR/"
+        $SUDO fc-cache -fv > /dev/null
+        
+        rm -rf "$TMP_DIR"
+        echo -e "${GREEN}✅ Nerd Font installed!${NC}"
     fi
-
-    echo -e "${BLUE}🔤 Installing JetBrainsMono Nerd Font...${NC}"
-    FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip"
-    FONT_DIR="/usr/local/share/fonts/JetBrainsMonoNerd"
     
-    $SUDO mkdir -p "$FONT_DIR"
-    
-    TMP_DIR=$(mktemp -d)
-    wget -q --show-progress -O "$TMP_DIR/font.zip" "$FONT_URL"
-    unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR"
-    
-    $SUDO mv "$TMP_DIR/"*.ttf "$FONT_DIR/"
-    $SUDO fc-cache -fv > /dev/null
-    
-    rm -rf "$TMP_DIR"
-    echo -e "${GREEN}✅ Nerd Font installed!${NC}"
+    # Try to auto-configure terminal if possible
+    configure_gnome_terminal
 }
 
 install_packages() {
@@ -311,7 +336,10 @@ else
 fi
 
 echo -e "${GREEN}✨ Setup complete!${NC}"
-echo -e "If the prompt doesn't look right, ensure you have a Nerd Font installed."
+echo -e "${YELLOW}⚠️  IMPORTANT: Manual Action Required${NC}"
+echo -e "1. If you are on **Desktop Linux**, open your terminal settings and select 'JetBrainsMono Nerd Font'."
+echo -e "2. If you are using **SSH, VS Code Remote, or Codespaces**, you must install the font on your **LOCAL COMPUTER** (Windows/Mac) and configure your local terminal to use it."
+echo -e "   The server-side font installation alone cannot display icons in your local terminal window."
 
 # Automatically switch to zsh
 if [ -n "$ZSH_PATH" ]; then

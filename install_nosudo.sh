@@ -110,42 +110,60 @@ install_binary "eza" "$EZA_URL" "eza"
 # Bat (v0.24.0)
 BAT_URL=""
 BAT_VERSION="v0.24.0"
-if [ "$OS_TYPE" = "linux" ] && [ "$ARCH" = "x86_64" ]; then
-    BAT_URL="https://github.com/sharkdp/bat/releases/download/${BAT_VERSION}/bat-${BAT_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+if [ "$OS_TYPE" = "linux" ]; then
+    if [ "$ARCH" = "x86_64" ]; then
+        BAT_URL="https://github.com/sharkdp/bat/releases/download/${BAT_VERSION}/bat-${BAT_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+    elif [ "$ARCH" = "aarch64" ]; then
+        BAT_URL="https://github.com/sharkdp/bat/releases/download/${BAT_VERSION}/bat-${BAT_VERSION}-aarch64-unknown-linux-gnu.tar.gz"
+    fi
 fi
 install_binary "bat" "$BAT_URL" "bat"
 
 # Ripgrep (14.1.0)
 RG_URL=""
 RG_VERSION="14.1.0"
-if [ "$OS_TYPE" = "linux" ] && [ "$ARCH" = "x86_64" ]; then
-    RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+if [ "$OS_TYPE" = "linux" ]; then
+    if [ "$ARCH" = "x86_64" ]; then
+        RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+    elif [ "$ARCH" = "aarch64" ]; then
+        RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-aarch64-unknown-linux-gnu.tar.gz"
+    fi
 fi
 install_binary "rg" "$RG_URL" "rg"
 
 # Tree (Static)
 TREE_URL=""
 if [ "$OS_TYPE" = "linux" ]; then
-    # Using a reliable source for static binaries (e.g., from Ramalama or similar trustworthy sources)
-    # Falling back to a known static binary provider if not compiling
     if [ "$ARCH" = "x86_64" ]; then
-        TREE_URL="https://github.com/gut-cli/gut/releases/download/0.0.1/tree-x86_64" # Placeholder or similar, using generic if avail
-        # Actually, for tree, let's use a very generic static build found on most static-bin repos
-        # Alternative: http://file.2bf.net/tree/tree-1.8.0-linux-x64.tar.gz
         TREE_URL="https://github.com/wimpysworld/static-binaries/raw/master/tree-1.8.0-x86_64.tar.gz"
+    elif [ "$ARCH" = "aarch64" ]; then
+        # Alternative source for arm64 tree binary
+        TREE_URL="https://github.com/PB-Web/static-binaries/raw/main/aarch64/tree"
     fi
 fi
-# Only install tree if we have a URL, otherwise skip (it's not critical)
 [ -n "$TREE_URL" ] && install_binary "tree" "$TREE_URL" "tree"
 
 
 # Tmux (Static)
 TMUX_URL=""
-if [ "$OS_TYPE" = "linux" ] && [ "$ARCH" = "x86_64" ]; then
-    # Static tmux build (much safer than AppImage)
-    TMUX_URL="https://github.com/m8r0wn/tmux-static/releases/download/v3.3a/tmux-linux-x86_64.tar.gz"
+if [ "$OS_TYPE" = "linux" ]; then
+    if [ "$ARCH" = "x86_64" ]; then
+        TMUX_URL="https://github.com/mjakob-gh/build-static-tmux/releases/download/v3.6a/tmux.linux-amd64.gz"
+    elif [ "$ARCH" = "aarch64" ]; then
+        TMUX_URL="https://github.com/mjakob-gh/build-static-tmux/releases/download/v3.6a/tmux.linux-arm64.gz"
+    fi
 fi
-install_binary "tmux" "$TMUX_URL" "tmux"
+# Note: install_binary helper handles .gz via 'tar xz', but for direct .gz binary we need a small tweak
+if [[ "$TMUX_URL" == *.gz ]] && [[ "$TMUX_URL" != *.tar.gz ]]; then
+    if ! command -v tmux &> /dev/null; then
+        echo "   ⬇️  Downloading tmux (ARM64)..."
+        curl -L "$TMUX_URL" | gunzip > "$HOME/.local/bin/tmux"
+        chmod +x "$HOME/.local/bin/tmux"
+        echo "   ✅ tmux installed."
+    fi
+else
+    install_binary "tmux" "$TMUX_URL" "tmux"
+fi
 
 
 # 5.5 Tree (Binary approach)
@@ -156,31 +174,55 @@ fi
 # 5.6 Install Nerd Font (Local)
 echo -e "${BLUE}🔤 Checking Nerd Fonts...${NC}"
 FONT_DIR="$HOME/.local/share/fonts"
+LEGACY_FONT_DIR="$HOME/.fonts"
+
 if fc-list : family=JetBrainsMono | grep -q "Nerd Font"; then
     echo -e "${GREEN}✅ JetBrainsMono Nerd Font is already installed.${NC}"
 else
-    echo -e "${YELLOW}⬇️  Installing JetBrainsMono Nerd Font (local)...${NC}"
-    mkdir -p "$FONT_DIR"
-    TMP_DIR=$(mktemp -d)
-    
-    # Download
-    curl -L "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip" -o "$TMP_DIR/font.zip"
-    
-    # Unzip
-    unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR"
-    
-    # Move
-    mv "$TMP_DIR/"*.ttf "$FONT_DIR/"
-    
-    # Cleanup
-    rm -rf "$TMP_DIR"
-    
-    # Update cache
-    if command -v fc-cache &> /dev/null; then
-        fc-cache -fv > /dev/null
-        echo -e "${GREEN}✅ Nerd Font installed to $FONT_DIR${NC}"
+    if ! command -v unzip &> /dev/null; then
+        echo -e "${RED}❌ 'unzip' not found. Cannot install fonts automatically.${NC}"
     else
-        echo -e "${YELLOW}⚠️  fc-cache not found. Fonts installed but might not be detected yet.${NC}"
+        echo -e "${YELLOW}⬇️  Installing JetBrainsMono Nerd Font (local)...${NC}"
+        mkdir -p "$FONT_DIR"
+        TMP_DIR=$(mktemp -d)
+        
+        # Download
+        curl -L "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip" -o "$TMP_DIR/font.zip"
+        
+        # Unzip
+        unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR"
+        
+        # Move
+        mv "$TMP_DIR/"*.ttf "$FONT_DIR/"
+        
+        # Legacy fallback
+        if [ ! -d "$LEGACY_FONT_DIR" ]; then
+            ln -s "$FONT_DIR" "$LEGACY_FONT_DIR"
+        fi
+        
+        # Cleanup
+        rm -rf "$TMP_DIR"
+        
+        # Update cache
+        if command -v fc-cache &> /dev/null; then
+            fc-cache -fv > /dev/null
+            echo -e "${GREEN}✅ Nerd Font installed to $FONT_DIR${NC}"
+        else
+            echo -e "${YELLOW}⚠️  fc-cache not found. Fonts installed but might not be detected yet.${NC}"
+        fi
+        
+        # Auto-configure GNOME Terminal if available
+        if command -v gsettings &> /dev/null; then
+            echo -e "${BLUE}⚙️  Configuring GNOME Terminal font...${NC}"
+            PROFILE_ID=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'")
+            if [ -n "$PROFILE_ID" ]; then
+                SCHEMA="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/"
+                if gsettings set "$SCHEMA" use-system-font false 2>/dev/null; then
+                    gsettings set "$SCHEMA" font 'JetBrainsMono Nerd Font Mono 12' 2>/dev/null
+                    echo -e "${GREEN}✅ GNOME Terminal font updated automatically!${NC}"
+                fi
+            fi
+        fi
     fi
 fi
 
