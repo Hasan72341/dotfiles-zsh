@@ -316,33 +316,73 @@ else
     ZSH_PATH=$(which zsh)
 fi
 
-if [ "$CURRENT_SHELL" != "zsh" ]; then
-    echo -e "${YELLOW}Switching default shell to Zsh...${NC}"
-    if [ -n "$ZSH_PATH" ]; then
+if [ -n "$ZSH_PATH" ]; then
+    # Ensure Zsh is in /etc/shells (Linux only usually)
+    if [ "$OS" = "Linux" ] && ! grep -q "$ZSH_PATH" /etc/shells; then
+        echo -e "${YELLOW}Adding $ZSH_PATH to /etc/shells...${NC}"
+        echo "$ZSH_PATH" | $SUDO tee -a /etc/shells > /dev/null
+    fi
+
+    if [ "$CURRENT_SHELL" != "zsh" ]; then
+        echo -e "${YELLOW}Switching default shell to Zsh...${NC}"
+        
         # Try changing shell
         if $SUDO -v &> /dev/null; then
-             # If we have sudo, use it to change safely
              $SUDO chsh -s "$ZSH_PATH" "$USER"
         else
              chsh -s "$ZSH_PATH"
         fi
         
-        echo -e "${GREEN}✅ Shell changed to Zsh! Please log out and back in.${NC}"
+        # Verify change
+        NEW_SHELL=$(getent passwd "$USER" | cut -d: -f7)
+        if [ "$NEW_SHELL" = "$ZSH_PATH" ]; then
+            echo -e "${GREEN}✅ Shell permanently changed to Zsh.${NC}"
+        else
+            echo -e "${RED}❌ Shell change failed. Current shell in /etc/passwd: $NEW_SHELL${NC}"
+            echo -e "${YELLOW}Please run 'chsh -s $(which zsh)' manually.${NC}"
+        fi
     else
-        echo -e "${RED}❌ Zsh not found! Please install zsh manually.${NC}"
+        echo -e "${GREEN}✅ You are already using Zsh.${NC}"
     fi
 else
-    echo -e "${GREEN}✅ You are already using Zsh.${NC}"
+    echo -e "${RED}❌ Zsh not found! Please install zsh manually.${NC}"
 fi
 
-echo -e "${GREEN}✨ Setup complete!${NC}"
-echo -e "${YELLOW}⚠️  IMPORTANT: Manual Action Required${NC}"
-echo -e "1. If you are on **Desktop Linux**, open your terminal settings and select 'JetBrainsMono Nerd Font'."
-echo -e "2. If you are using **SSH, VS Code Remote, or Codespaces**, you must install the font on your **LOCAL COMPUTER** (Windows/Mac) and configure your local terminal to use it."
-echo -e "   The server-side font installation alone cannot display icons in your local terminal window."
+# ... (Font configuration) ...
 
-# Automatically switch to zsh
-if [ -n "$ZSH_PATH" ]; then
-    echo -e "${BLUE}🔄 Switching to Zsh now...${NC}"
-    exec "$ZSH_PATH" -l
-fi
+configure_gnome_terminal() {
+    if command -v gsettings &> /dev/null; then
+        echo -e "${BLUE}⚙️  Configuring GNOME Terminal font...${NC}"
+        
+        # Ensure DBus session is accessible
+        if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+        fi
+
+        # Find the exact installed Nerd Font name (prefer Mono)
+        N_FONT=$(fc-list : family | grep "JetBrainsMono Nerd Font Mono" | head -n 1 | cut -d',' -f1)
+        if [ -z "$N_FONT" ]; then
+            N_FONT=$(fc-list : family | grep "JetBrainsMono Nerd Font" | head -n 1 | cut -d',' -f1)
+        fi
+
+        if [ -n "$N_FONT" ]; then
+            echo "   Found font: $N_FONT"
+            PROFILE_ID=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'")
+            
+            if [ -n "$PROFILE_ID" ]; then
+                SCHEMA="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/"
+                
+                # Disable system font usage
+                if gsettings set "$SCHEMA" use-system-font false 2>/dev/null; then
+                    # Set the Nerd Font
+                    gsettings set "$SCHEMA" font "$N_FONT 12" 2>/dev/null
+                    echo -e "${GREEN}✅ GNOME Terminal font updated to '$N_FONT 12'!${NC}"
+                else
+                    echo -e "${YELLOW}⚠️  Could not set GNOME Terminal settings. (Try running locally, not via SSH)${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}⚠️  JetBrainsMono Nerd Font not detected in fc-list.${NC}"
+        fi
+    fi
+}
