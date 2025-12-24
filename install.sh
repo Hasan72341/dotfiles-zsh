@@ -50,6 +50,32 @@ install_starship_manual() {
     fi
 }
 
+install_nerd_fonts() {
+    # Only for Linux in this script (macOS users usually install fonts manually or via cask)
+    if [ "$OS" != "Linux" ]; then return; fi
+
+    if fc-list : family=JetBrainsMono | grep -q "Nerd Font"; then
+        echo -e "${GREEN}✅ JetBrainsMono Nerd Font is already installed.${NC}"
+        return
+    fi
+
+    echo -e "${BLUE}🔤 Installing JetBrainsMono Nerd Font...${NC}"
+    FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip"
+    FONT_DIR="/usr/local/share/fonts/JetBrainsMonoNerd"
+    
+    $SUDO mkdir -p "$FONT_DIR"
+    
+    TMP_DIR=$(mktemp -d)
+    wget -q --show-progress -O "$TMP_DIR/font.zip" "$FONT_URL"
+    unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR"
+    
+    $SUDO mv "$TMP_DIR/"*.ttf "$FONT_DIR/"
+    $SUDO fc-cache -fv > /dev/null
+    
+    rm -rf "$TMP_DIR"
+    echo -e "${GREEN}✅ Nerd Font installed!${NC}"
+}
+
 install_packages() {
     echo -e "${BLUE}📦 Installing packages...${NC}"
     
@@ -80,7 +106,7 @@ install_packages() {
                 $SUDO apt-get update
                 # bat is often 'bat' or 'batcat', eza needs external repo or manual
                 # Install basics
-                $SUDO apt-get install -y git zsh curl wget fzf ripgrep tmux tree
+                $SUDO apt-get install -y git zsh curl wget fzf ripgrep tmux tree unzip fontconfig
                 
                 # Install Bat (batcat)
                 $SUDO apt-get install -y bat
@@ -126,9 +152,15 @@ install_packages() {
                                  TMP_DIR=$(mktemp -d)
                                  echo "Downloading $EZA_URL..."
                                  if curl -L "$EZA_URL" | tar xz -C "$TMP_DIR"; then
-                                     $SUDO mv "$TMP_DIR/eza" /usr/local/bin/eza
-                                     $SUDO chmod +x /usr/local/bin/eza
-                                     echo "Eza installed from binary."
+                                     # Find the binary regardless of directory structure
+                                     FOUND_BIN=$(find "$TMP_DIR" -type f -name "eza" | head -n 1)
+                                     if [ -n "$FOUND_BIN" ]; then
+                                         $SUDO mv "$FOUND_BIN" /usr/local/bin/eza
+                                         $SUDO chmod +x /usr/local/bin/eza
+                                         echo "Eza installed from binary."
+                                     else
+                                          echo "Extracted tarball but could not find 'eza' binary."
+                                     fi
                                  else
                                      echo "Failed to download/extract eza binary."
                                  fi
@@ -147,15 +179,20 @@ install_packages() {
                 
                 # Starship
                 install_starship_manual
+                
+                # Nerd Fonts
+                install_nerd_fonts
                 ;;
 
             fedora|rhel|centos)
-                $SUDO dnf install -y git zsh curl wget fzf ripgrep bat eza zoxide tmux tree
+                $SUDO dnf install -y git zsh curl wget fzf ripgrep bat eza zoxide tmux tree unzip fontconfig
                 install_starship_manual
+                install_nerd_fonts
                 ;;
 
             arch|manjaro|endeavouros)
-                $SUDO pacman -Sy --noconfirm git zsh curl wget fzf ripgrep bat eza zoxide starship tmux tree
+                $SUDO pacman -Sy --noconfirm git zsh curl wget fzf ripgrep bat eza zoxide starship tmux tree unzip fontconfig
+                install_nerd_fonts
                 ;;
 
             *)

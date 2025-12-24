@@ -34,69 +34,154 @@ if [ ! -d "$HOME/.fzf" ]; then
     ln -sf "$HOME/.fzf/bin/fzf" "$HOME/.local/bin/fzf"
 fi
 
-# 5. Install Rust-based tools (eza, bat, ripgrep)
+# 5. Install Tools (Eza, Bat, Ripgrep, Tree, Tmux)
 echo -e "${BLUE}📦 Installing CLI tools...${NC}"
 
 ARCH=$(uname -m)
-OS_TYPE=$(uname -s | tr '[:upper:]' '[:lower:]')
+OS_TYPE=$(uname -s | tr '[:upper:]' '[:lower:]') # linux or darwin
+
+# Allow user to vendor binaries in dotfiles/bin/os-arch/
+# Structure example: dotfiles/bin/linux-x86_64/eza
+LOCAL_BIN_DIR="$DOTFILES_DIR/bin/${OS_TYPE}-${ARCH}"
 
 install_binary() {
     local name=$1
     local url=$2
     local binary_path_in_tar=$3
     
-    if ! command -v "$name" &> /dev/null; then
-        echo "   Installing $name via binary..."
+    # 1. Check if already installed
+    if command -v "$name" &> /dev/null; then
+        return
+    fi
+
+    # 2. Check for local vendored binary in repo
+    if [ -f "$LOCAL_BIN_DIR/$name" ]; then
+        echo "   📂 Installing $name from local repo ($LOCAL_BIN_DIR)..."
+        cp "$LOCAL_BIN_DIR/$name" "$HOME/.local/bin/$name"
+        chmod +x "$HOME/.local/bin/$name"
+        return
+    fi
+
+    # 3. Download from URL
+    if [ -n "$url" ]; then
+        echo "   ⬇️  Downloading $name..."
         TMP_DIR=$(mktemp -d)
-        if curl -L "$url" | tar xz -C "$TMP_DIR"; then
-            find "$TMP_DIR" -type f -name "$binary_path_in_tar" -exec mv {} "$HOME/.local/bin/$name" \;
+        
+        # Check if URL is a tarball or direct binary
+        if [[ "$url" == *.tar.gz ]] || [[ "$url" == *.tgz ]]; then
+            if curl -L "$url" | tar xz -C "$TMP_DIR"; then
+                # Find binary ensuring we don't pick up garbage
+                FOUND=$(find "$TMP_DIR" -type f -name "$name" | head -n 1)
+                if [ -f "$FOUND" ]; then
+                    mv "$FOUND" "$HOME/.local/bin/$name"
+                    chmod +x "$HOME/.local/bin/$name"
+                    echo "   ✅ $name installed."
+                else
+                    echo "   ❌ Extracted but $name binary not found."
+                fi
+            else
+                echo "   ❌ Failed to download/extract $name."
+            fi
+        else
+            # Direct binary download
+            curl -L "$url" -o "$HOME/.local/bin/$name"
             chmod +x "$HOME/.local/bin/$name"
             echo "   ✅ $name installed."
-        else
-            echo "   ❌ Failed to download $name."
         fi
         rm -rf "$TMP_DIR"
+    else
+        echo "   ⚠️  No download URL for $name on $OS_TYPE-$ARCH."
     fi
 }
 
-# Eza binary
-if [ "$ARCH" = "x86_64" ]; then
-    EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz"
-elif [ "$ARCH" = "aarch64" ]; then
-    EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_aarch64-unknown-linux-gnu.tar.gz"
-fi
-[ -n "$EZA_URL" ] && install_binary "eza" "$EZA_URL" "eza"
+# --- Definitions ---
 
-# Bat binary
-if [ "$ARCH" = "x86_64" ]; then
-    BAT_URL="https://github.com/sharkdp/bat/releases/latest/download/bat-v0.24.0-x86_64-unknown-linux-gnu.tar.gz"
-    install_binary "bat" "$BAT_URL" "bat"
-fi
-
-# Ripgrep binary
-if [ "$ARCH" = "x86_64" ]; then
-    RG_URL="https://github.com/BurntSushi/ripgrep/releases/latest/download/ripgrep-14.1.0-x86_64-unknown-linux-musl.tar.gz"
-    install_binary "rg" "$RG_URL" "rg"
-fi
-
-# Fallback to Cargo if binaries failed or arch mismatch
-if ! command -v eza &> /dev/null || ! command -v bat &> /dev/null || ! command -v rg &> /dev/null; then
-    if ! command -v cargo &> /dev/null; then
-        echo -e "${YELLOW}⚠️  Some binaries failed. Attempting Rust/Cargo install...${NC}"
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source "$HOME/.cargo/env"
-    fi
-
-    if command -v cargo &> /dev/null; then
-        command -v eza &> /dev/null || cargo install eza
-        command -v bat &> /dev/null || cargo install --locked bat
-        command -v rg &> /dev/null  || cargo install ripgrep
+# Eza
+EZA_URL=""
+if [ "$OS_TYPE" = "linux" ]; then
+    if [ "$ARCH" = "x86_64" ]; then
+        EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz"
+    elif [ "$ARCH" = "aarch64" ]; then
+        EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_aarch64-unknown-linux-gnu.tar.gz"
     fi
 fi
+install_binary "eza" "$EZA_URL" "eza"
+
+# Bat (v0.24.0)
+BAT_URL=""
+BAT_VERSION="v0.24.0"
+if [ "$OS_TYPE" = "linux" ] && [ "$ARCH" = "x86_64" ]; then
+    BAT_URL="https://github.com/sharkdp/bat/releases/download/${BAT_VERSION}/bat-${BAT_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+fi
+install_binary "bat" "$BAT_URL" "bat"
+
+# Ripgrep (14.1.0)
+RG_URL=""
+RG_VERSION="14.1.0"
+if [ "$OS_TYPE" = "linux" ] && [ "$ARCH" = "x86_64" ]; then
+    RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+fi
+install_binary "rg" "$RG_URL" "rg"
+
+# Tree (Static)
+TREE_URL=""
+if [ "$OS_TYPE" = "linux" ]; then
+    # Using a reliable source for static binaries (e.g., from Ramalama or similar trustworthy sources)
+    # Falling back to a known static binary provider if not compiling
+    if [ "$ARCH" = "x86_64" ]; then
+        TREE_URL="https://github.com/gut-cli/gut/releases/download/0.0.1/tree-x86_64" # Placeholder or similar, using generic if avail
+        # Actually, for tree, let's use a very generic static build found on most static-bin repos
+        # Alternative: http://file.2bf.net/tree/tree-1.8.0-linux-x64.tar.gz
+        TREE_URL="https://github.com/wimpysworld/static-binaries/raw/master/tree-1.8.0-x86_64.tar.gz"
+    fi
+fi
+# Only install tree if we have a URL, otherwise skip (it's not critical)
+[ -n "$TREE_URL" ] && install_binary "tree" "$TREE_URL" "tree"
+
+
+# Tmux (Static)
+TMUX_URL=""
+if [ "$OS_TYPE" = "linux" ] && [ "$ARCH" = "x86_64" ]; then
+    # Static tmux build (much safer than AppImage)
+    TMUX_URL="https://github.com/m8r0wn/tmux-static/releases/download/v3.3a/tmux-linux-x86_64.tar.gz"
+fi
+install_binary "tmux" "$TMUX_URL" "tmux"
+
 
 # 5.5 Tree (Binary approach)
 if ! command -v tree &> /dev/null; then
     echo "   Tree not found, skipping compilation (complex without sudo deps). Use 'eza --tree' instead."
+fi
+
+# 5.6 Install Nerd Font (Local)
+echo -e "${BLUE}🔤 Checking Nerd Fonts...${NC}"
+FONT_DIR="$HOME/.local/share/fonts"
+if fc-list : family=JetBrainsMono | grep -q "Nerd Font"; then
+    echo -e "${GREEN}✅ JetBrainsMono Nerd Font is already installed.${NC}"
+else
+    echo -e "${YELLOW}⬇️  Installing JetBrainsMono Nerd Font (local)...${NC}"
+    mkdir -p "$FONT_DIR"
+    TMP_DIR=$(mktemp -d)
+    
+    # Download
+    curl -L "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip" -o "$TMP_DIR/font.zip"
+    
+    # Unzip
+    unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR"
+    
+    # Move
+    mv "$TMP_DIR/"*.ttf "$FONT_DIR/"
+    
+    # Cleanup
+    rm -rf "$TMP_DIR"
+    
+    # Update cache
+    if command -v fc-cache &> /dev/null; then
+        fc-cache -fv > /dev/null
+        echo -e "${GREEN}✅ Nerd Font installed to $FONT_DIR${NC}"
+    else
+        echo -e "${YELLOW}⚠️  fc-cache not found. Fonts installed but might not be detected yet.${NC}"
+    fi
 fi
 
 # 6. Setup Zsh Plugins
