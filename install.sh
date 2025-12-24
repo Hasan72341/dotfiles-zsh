@@ -15,6 +15,16 @@ echo -e "${BLUE}🚀 Starting Cross-Platform Setup...${NC}"
 # ─────────────────────────────────────────────────────────────────────────────
 OS="$(uname -s)"
 DISTRO=""
+SUDO=""
+
+if [ "$(id -u)" -ne 0 ]; then
+    if command -v sudo &> /dev/null; then
+        SUDO="sudo"
+    else
+        echo -e "${RED}❌ Root privileges required but 'sudo' not found.${NC}"
+        exit 1
+    fi
+fi
 
 if [ "$OS" = "Linux" ]; then
     if [ -f /etc/os-release ]; then
@@ -61,13 +71,13 @@ install_packages() {
     elif [ "$OS" = "Linux" ]; then
         case "$DISTRO" in
             ubuntu|debian|pop|kali|linuxmint)
-                sudo apt-get update
+                $SUDO apt-get update
                 # bat is often 'bat' or 'batcat', eza needs external repo or manual
                 # Install basics
-                sudo apt-get install -y git zsh curl wget fzf ripgrep tmux tree
+                $SUDO apt-get install -y git zsh curl wget fzf ripgrep tmux tree
                 
                 # Install Bat (batcat)
-                sudo apt-get install -y bat
+                $SUDO apt-get install -y bat
                 # Make a symlink for bat if it's installed as batcat
                 if command -v batcat &> /dev/null && ! command -v bat &> /dev/null; then
                     mkdir -p ~/.local/bin
@@ -85,12 +95,12 @@ install_packages() {
                          cargo install eza
                      else
                          # Fallback: try to add repo for eza
-                         sudo mkdir -p /etc/apt/keyrings
-                         wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
-                         echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de/stable/ /" | sudo tee /etc/apt/sources.list.d/gierens.list
-                         sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-                         sudo apt-get update
-                         sudo apt-get install -y eza
+                         $SUDO mkdir -p /etc/apt/keyrings
+                         wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | $SUDO gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
+                         echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de/stable/ /" | $SUDO tee /etc/apt/sources.list.d/gierens.list
+                         $SUDO chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
+                         $SUDO apt-get update
+                         $SUDO apt-get install -y eza
                      fi
                 fi
 
@@ -104,12 +114,12 @@ install_packages() {
                 ;;
 
             fedora|rhel|centos)
-                sudo dnf install -y git zsh curl wget fzf ripgrep bat eza zoxide tmux tree
+                $SUDO dnf install -y git zsh curl wget fzf ripgrep bat eza zoxide tmux tree
                 install_starship_manual
                 ;;
 
             arch|manjaro|endeavouros)
-                sudo pacman -Sy --noconfirm git zsh curl wget fzf ripgrep bat eza zoxide starship tmux tree
+                $SUDO pacman -Sy --noconfirm git zsh curl wget fzf ripgrep bat eza zoxide starship tmux tree
                 ;;
 
             *)
@@ -212,9 +222,9 @@ if [ "$CURRENT_SHELL" != "zsh" ]; then
     echo -e "${YELLOW}Switching default shell to Zsh...${NC}"
     if [ -n "$ZSH_PATH" ]; then
         # Try changing shell
-        if sudo -v &> /dev/null; then
+        if $SUDO -v &> /dev/null; then
              # If we have sudo, use it to change safely
-             sudo chsh -s "$ZSH_PATH" "$USER"
+             $SUDO chsh -s "$ZSH_PATH" "$USER"
         else
              chsh -s "$ZSH_PATH"
         fi

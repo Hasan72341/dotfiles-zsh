@@ -36,15 +36,20 @@ fi
 
 # 5. Install Rust-based tools (eza, bat, ripgrep)
 # Since we have no sudo, Cargo is the best way.
+
+if ! command -v cargo &> /dev/null; then
+    echo -e "${YELLOW}⚠️  Rust/Cargo not found. Installing Rust...${NC}"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+fi
+
 if command -v cargo &> /dev/null; then
     echo -e "${GREEN}🦀 Cargo detected. Installing utils via Rust...${NC}"
     command -v eza &> /dev/null || cargo install eza
     command -v bat &> /dev/null || cargo install --locked bat
     command -v rg &> /dev/null  || cargo install ripgrep
 else
-    echo -e "${YELLOW}⚠️  Rust/Cargo not found.${NC}"
-    echo -e "   Skipping eza, bat, and ripgrep."
-    echo -e "   To get them, install Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    echo -e "${RED}❌ Failed to install Rust. Skipping eza, bat, and ripgrep.${NC}"
 fi
 
 # 5.5 Install Tmux & Tree (Local Compilation)
