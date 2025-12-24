@@ -71,6 +71,12 @@ install_packages() {
     elif [ "$OS" = "Linux" ]; then
         case "$DISTRO" in
             ubuntu|debian|pop|kali|linuxmint)
+                # Remove potentially broken eza repo source from previous runs to prevent apt-get update failure
+                if [ -f /etc/apt/sources.list.d/gierens.list ]; then
+                    echo "Removing existing gierens.list to ensure clean setup..."
+                    $SUDO rm -f /etc/apt/sources.list.d/gierens.list
+                fi
+                
                 $SUDO apt-get update
                 # bat is often 'bat' or 'batcat', eza needs external repo or manual
                 # Install basics
@@ -89,18 +95,48 @@ install_packages() {
                 # Attempting cargo if rust is there, or simple apt if available in newer versions
                 # For stability, we'll try to get it via official means or cargo
                 if ! command -v eza &> /dev/null; then
-                     echo "Installing eza via script/cargo or mkdir..."
+                     echo "Installing eza..."
                      # Check if we can use cargo
                      if command -v cargo &> /dev/null; then
+                         echo "Installing eza via Cargo..."
                          cargo install eza
                      else
-                         # Fallback: try to add repo for eza
+                         echo "Attempting to install eza via apt..."
                          $SUDO mkdir -p /etc/apt/keyrings
-                         wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | $SUDO gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
-                         echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de/stable/ /" | $SUDO tee /etc/apt/sources.list.d/gierens.list
+                         wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | $SUDO gpg --dearmor --yes -o /etc/apt/keyrings/gierens.gpg
+                         echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | $SUDO tee /etc/apt/sources.list.d/gierens.list
                          $SUDO chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-                         $SUDO apt-get update
-                         $SUDO apt-get install -y eza
+                         
+                         if $SUDO apt-get update && $SUDO apt-get install -y eza; then
+                             echo "Eza installed successfully via apt."
+                         else
+                             echo "Apt installation failed. Falling back to binary download..."
+                             # Clean up potential broken list file to avoid future apt errors
+                             $SUDO rm -f /etc/apt/sources.list.d/gierens.list
+                             
+                             ARCH=$(uname -m)
+                             EZA_URL=""
+                             if [ "$ARCH" = "x86_64" ]; then
+                                 EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz"
+                             elif [ "$ARCH" = "aarch64" ]; then
+                                 EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_aarch64-unknown-linux-gnu.tar.gz"
+                             fi
+
+                             if [ -n "$EZA_URL" ]; then
+                                 TMP_DIR=$(mktemp -d)
+                                 echo "Downloading $EZA_URL..."
+                                 if curl -L "$EZA_URL" | tar xz -C "$TMP_DIR"; then
+                                     $SUDO mv "$TMP_DIR/eza" /usr/local/bin/eza
+                                     $SUDO chmod +x /usr/local/bin/eza
+                                     echo "Eza installed from binary."
+                                 else
+                                     echo "Failed to download/extract eza binary."
+                                 fi
+                                 rm -rf "$TMP_DIR"
+                             else
+                                 echo "Architecture $ARCH not supported for automatic binary install."
+                             fi
+                         fi
                      fi
                 fi
 
@@ -239,4 +275,9 @@ fi
 
 echo -e "${GREEN}✨ Setup complete!${NC}"
 echo -e "If the prompt doesn't look right, ensure you have a Nerd Font installed."
-echo -e "Restart your terminal to see changes."
+
+# Automatically switch to zsh
+if [ -n "$ZSH_PATH" ]; then
+    echo -e "${BLUE}🔄 Switching to Zsh now...${NC}"
+    exec "$ZSH_PATH" -l
+fi

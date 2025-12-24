@@ -35,48 +35,91 @@ if [ ! -d "$HOME/.fzf" ]; then
 fi
 
 # 5. Install Rust-based tools (eza, bat, ripgrep)
-# Since we have no sudo, Cargo is the best way.
+echo -e "${BLUE}📦 Installing CLI tools...${NC}"
 
-if ! command -v cargo &> /dev/null; then
-    echo -e "${YELLOW}⚠️  Rust/Cargo not found. Installing Rust...${NC}"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source "$HOME/.cargo/env"
+ARCH=$(uname -m)
+OS_TYPE=$(uname -s | tr '[:upper:]' '[:lower:]')
+
+install_binary() {
+    local name=$1
+    local url=$2
+    local binary_path_in_tar=$3
+    
+    if ! command -v "$name" &> /dev/null; then
+        echo "   Installing $name via binary..."
+        TMP_DIR=$(mktemp -d)
+        if curl -L "$url" | tar xz -C "$TMP_DIR"; then
+            find "$TMP_DIR" -type f -name "$binary_path_in_tar" -exec mv {} "$HOME/.local/bin/$name" \;
+            chmod +x "$HOME/.local/bin/$name"
+            echo "   ✅ $name installed."
+        else
+            echo "   ❌ Failed to download $name."
+        fi
+        rm -rf "$TMP_DIR"
+    fi
+}
+
+# Eza binary
+if [ "$ARCH" = "x86_64" ]; then
+    EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz"
+elif [ "$ARCH" = "aarch64" ]; then
+    EZA_URL="https://github.com/eza-community/eza/releases/latest/download/eza_aarch64-unknown-linux-gnu.tar.gz"
+fi
+[ -n "$EZA_URL" ] && install_binary "eza" "$EZA_URL" "eza"
+
+# Bat binary
+if [ "$ARCH" = "x86_64" ]; then
+    BAT_URL="https://github.com/sharkdp/bat/releases/latest/download/bat-v0.24.0-x86_64-unknown-linux-gnu.tar.gz"
+    install_binary "bat" "$BAT_URL" "bat"
 fi
 
-if command -v cargo &> /dev/null; then
-    echo -e "${GREEN}🦀 Cargo detected. Installing utils via Rust...${NC}"
-    command -v eza &> /dev/null || cargo install eza
-    command -v bat &> /dev/null || cargo install --locked bat
-    command -v rg &> /dev/null  || cargo install ripgrep
-else
-    echo -e "${RED}❌ Failed to install Rust. Skipping eza, bat, and ripgrep.${NC}"
+# Ripgrep binary
+if [ "$ARCH" = "x86_64" ]; then
+    RG_URL="https://github.com/BurntSushi/ripgrep/releases/latest/download/ripgrep-14.1.0-x86_64-unknown-linux-musl.tar.gz"
+    install_binary "rg" "$RG_URL" "rg"
 fi
 
-# 5.5 Install Tmux & Tree (Local Compilation)
-echo -e "${YELLOW}🛠  Compiling Tree & Tmux (local)...${NC}"
+# Fallback to Cargo if binaries failed or arch mismatch
+if ! command -v eza &> /dev/null || ! command -v bat &> /dev/null || ! command -v rg &> /dev/null; then
+    if ! command -v cargo &> /dev/null; then
+        echo -e "${YELLOW}⚠️  Some binaries failed. Attempting Rust/Cargo install...${NC}"
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
+    fi
 
-# Tree
+    if command -v cargo &> /dev/null; then
+        command -v eza &> /dev/null || cargo install eza
+        command -v bat &> /dev/null || cargo install --locked bat
+        command -v rg &> /dev/null  || cargo install ripgrep
+    fi
+fi
+
+# 5.5 Tree (Binary approach)
 if ! command -v tree &> /dev/null; then
-  echo "   Compiling tree..."
-  mkdir -p "$HOME/.src"
-  cd "$HOME/.src"
-  curl -L http://mama.indstate.edu/users/ice/tree/src/tree-2.1.3.tgz -o tree.tgz
-  tar -xzf tree.tgz
-  cd tree-2.1.3
-  make
-  cp tree "$HOME/.local/bin/"
-  cd ..
+    echo "   Tree not found, skipping compilation (complex without sudo deps). Use 'eza --tree' instead."
 fi
 
-# Tmux (Static binary approach is better, but simple compilation for now)
-if ! command -v tmux &> /dev/null; then
-  echo "   Tmux requires libevent/ncurses. Using AppImage (safe fallback) or skipping if unavailable."
-  # Using a static build release is much safer for non-sudo than compiling from source due to deps
-  curl -L https://github.com/nelsonenzo/tmux-appimage/releases/download/3.3a/tmux.appimage -o "$HOME/.local/bin/tmux"
-  chmod +x "$HOME/.local/bin/tmux"
-fi
+# 6. Setup Zsh Plugins
+echo -e "${BLUE}🔌 Setting up Zsh plugins...${NC}"
+PLUGIN_DIR="$HOME/.zsh/plugins"
+mkdir -p "$PLUGIN_DIR"
 
-# 6. Copy Configurations
+clone_or_update() {
+    local repo_url=$1
+    local dest_dir=$2
+    if [ -d "$dest_dir" ]; then
+        (cd "$dest_dir" && git pull --quiet)
+    else
+        echo "   Cloning $(basename "$dest_dir")..."
+        git clone --quiet "$repo_url" "$dest_dir"
+    fi
+}
+
+clone_or_update "https://github.com/zsh-users/zsh-autosuggestions" "$PLUGIN_DIR/zsh-autosuggestions"
+clone_or_update "https://github.com/zsh-users/zsh-syntax-highlighting" "$PLUGIN_DIR/zsh-syntax-highlighting"
+clone_or_update "https://github.com/zsh-users/zsh-history-substring-search" "$PLUGIN_DIR/zsh-history-substring-search"
+
+# 7. Copy Configurations
 echo -e "${BLUE}📁 Copying configurations...${NC}"
 DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -85,18 +128,27 @@ copy_file() {
     local dest=$2
     
     mkdir -p "$(dirname "$dest")"
-    if [ -f "$dest" ]; then
+    if [ -f "$dest" ] || [ -L "$dest" ]; then
         mv "$dest" "$dest.bak.$(date +%s)"
     fi
     cp "$src" "$dest"
     echo "   Copied $src -> $dest"
 }
 
+copy_file "$DOTFILES_DIR/.zshrc" "$HOME/.zshrc"
 copy_file "$DOTFILES_DIR/.bashrc" "$HOME/.bashrc"
 copy_file "$DOTFILES_DIR/starship.toml" "$HOME/.config/starship.toml"
 
-# 7. Silence Login
+# 8. Silence Login
 touch "$HOME/.hushlogin"
 
 echo -e "${GREEN}✨ Setup complete!${NC}"
-echo -e "Restart your terminal or run: source ~/.bashrc"
+
+# Automatically switch to zsh
+ZSH_PATH=$(which zsh)
+if [ -n "$ZSH_PATH" ]; then
+    echo -e "${BLUE}🔄 Switching to Zsh now...${NC}"
+    exec "$ZSH_PATH" -l
+else
+    echo -e "${YELLOW}⚠️ Zsh not found. Please run: source ~/.bashrc${NC}"
+fi
