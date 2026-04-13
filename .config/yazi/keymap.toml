@@ -1,0 +1,9 @@
+[manager]
+prepend_keymap = [
+  { on = ["g", "h"], run = "cd ~", desc = "Go home" },
+  { on = ["g", "c"], run = "cd ~/.config", desc = "Go to config" },
+  { on = ["g", "d"], run = "cd ~/Downloads", desc = "Go to downloads" },
+  { on = ["g", "p"], run = "cd ~/Projects", desc = "Go to projects" },
+  { on = ["<C-g>"], run = 'shell --confirm "lazygit"', desc = "Open LazyGit" },
+  { on = ["<C-f>"], run = 'shell --confirm "fzf"', desc = "Open fzf" }
+]

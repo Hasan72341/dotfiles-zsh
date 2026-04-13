@@ -1,0 +1,5 @@
+vim.keymap.set("n", "<leader>ft", "<cmd>TodoTelescope<cr>", { desc = "Todo Telescope" })
+vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { desc = "LazyGit" })
+vim.keymap.set("n", "<leader>un", function()
+  vim.opt.relativenumber = not vim.opt.relativenumber:get()
+end, { desc = "Toggle relative number" })

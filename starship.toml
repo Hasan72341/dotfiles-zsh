@@ -1,117 +1,119 @@
-# ─────────────────────────────────────────
-#      TOKYO NIGHT (CYBER TREE v3)
-#   Full Cyber Pills + Git + Venv + Stats
-# ─────────────────────────────────────────
-
+palette = "tokyonight"
 add_newline = true
 command_timeout = 1000
+scan_timeout = 30
 
 format = """
-[╭─](bold #7aa2f7)$directory$git_branch$git_status$env_var$python$nodejs$fill$memory_usage$cmd_duration$time
-[╰─](bold #7aa2f7)$character
+$os$username$hostname$directory$git_branch$git_status$fill$python$nodejs$lua$rust$golang$cmd_duration$time
+$character
 """
 
-# ─────────────────────────────────────────
-# DIRECTORY
-# ─────────────────────────────────────────
+[palettes.tokyonight]
+bg = "#1a1b26"
+surface = "#24283b"
+surface_alt = "#292e42"
+fg = "#c0caf5"
+muted = "#565f89"
+blue = "#7aa2f7"
+cyan = "#7dcfff"
+green = "#9ece6a"
+orange = "#ff9e64"
+red = "#f7768e"
+yellow = "#e0af68"
+magenta = "#bb9af7"
+
+[os]
+disabled = false
+format = "[](fg:surface)[ $symbol ](bg:surface fg:blue)[](fg:surface)"
+
+[os.symbols]
+Macos = ""
+Ubuntu = "󰕈"
+Debian = "󰣚"
+Arch = "󰣇"
+Fedora = "󰣛"
+Linux = "󰌽"
+
+[username]
+show_always = true
+style_user = "bg:surface fg:fg bold"
+style_root = "bg:surface fg:red bold"
+format = "[](fg:surface)[ $user ]($style)[](fg:surface)"
+
+[hostname]
+ssh_only = false
+style = "bg:surface fg:muted"
+format = "[](fg:surface)[@$hostname ]($style)[](fg:surface)"
+
 [directory]
-style = "bg:#24283b fg:#7aa2f7 bold"
-read_only = " "
-read_only_style = "bg:#24283b fg:#f7768e"
-truncate_to_repo = true
+style = "bg:surface_alt fg:blue bold"
 truncation_length = 3
-format = " [](fg:#24283b)[  $path]($style)[$read_only]($read_only_style)[](fg:#24283b)"
+truncate_to_repo = true
+read_only = " 󰌾"
+read_only_style = "bg:surface_alt fg:red"
+format = "[](fg:surface_alt)[   $path ]($style)[$read_only]($read_only_style)[](fg:surface_alt)"
 
-# ─────────────────────────────────────────
-# GIT BRANCH
-# ─────────────────────────────────────────
 [git_branch]
-symbol = " "
-style = "bg:#24283b fg:#bb9af7 bold"
-format = " [](fg:#24283b)[$symbol$branch]($style)[](fg:#24283b)"
+symbol = ""
+style = "bg:surface fg:magenta bold"
+format = "[](fg:surface)[ $symbol $branch ]($style)[](fg:surface)"
 
-# ─────────────────────────────────────────
-# GIT STATUS
-# ─────────────────────────────────────────
 [git_status]
-style = "bg:#24283b fg:#565f89"
-format = " [](fg:#24283b)[$all_status$ahead_behind]($style)[](fg:#24283b)"
-conflicted = "🏳"
-ahead = "⇡"
-behind = "⇣"
-diverged = "⇕"
-untracked = ""
-stashed = ""
-modified = ""
-staged = ""
-renamed = ""
-deleted = ""
+style = "bg:surface fg:yellow"
+format = "[](fg:surface)[ $all_status$ahead_behind ]($style)[](fg:surface)"
+conflicted = " "
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+untracked = "?${count}"
+stashed = "*${count}"
+modified = "!${count}"
+staged = "+${count}"
+renamed = "»${count}"
+deleted = "✘${count}"
 
-# ─────────────────────────────────────────
-# VIRTUALENV (pill)
-# ─────────────────────────────────────────
-[env_var]
-variable = "VIRTUAL_ENV"
-style = "bg:#24283b fg:#bb9af7 bold"
-format = " [](fg:#24283b)[  ${env_value##*/}]($style)[](fg:#24283b)"
-
-# ─────────────────────────────────────────
-# PYTHON (only when no venv)
-# ─────────────────────────────────────────
-[python]
-detect_extensions = ["py"]
-detect_files = ["requirements.txt", "pyproject.toml", "Pipfile", "setup.py"]
-symbol = " "
-style = "bg:#24283b fg:#ff9e64 bold"
-format = " [](fg:#24283b)[$symbol$version]($style)[](fg:#24283b)"
-python_binary = "python3"
-
-# ─────────────────────────────────────────
-# NODEJS
-# ─────────────────────────────────────────
-[nodejs]
-symbol = " "
-style = "bg:#24283b fg:#9ece6a bold"
-format = " [](fg:#24283b)[$symbol$version]($style)[](fg:#24283b)"
-
-# ─────────────────────────────────────────
-# FILL
-# ─────────────────────────────────────────
 [fill]
 symbol = " "
 
-# ─────────────────────────────────────────
-# MEMORY
-# ─────────────────────────────────────────
-[memory_usage]
-disabled = false
-threshold = 0
-symbol = "󰍛 "
-style = "bg:#24283b fg:#7dcfff bold"
-format = " [](fg:#24283b)[$symbol$ram]($style)[](fg:#24283b)"
+[python]
+symbol = ""
+style = "bg:surface fg:green bold"
+detect_extensions = ["py"]
+detect_files = ["pyproject.toml", "requirements.txt", "Pipfile", "uv.lock", ".python-version"]
+format = "[](fg:surface)[ $symbol $version ]($style)[](fg:surface)"
 
-# ─────────────────────────────────────────
-# CMD DURATION
-# ─────────────────────────────────────────
+[nodejs]
+symbol = "󰎙"
+style = "bg:surface fg:green bold"
+format = "[](fg:surface)[ $symbol $version ]($style)[](fg:surface)"
+
+[lua]
+symbol = ""
+style = "bg:surface fg:blue bold"
+format = "[](fg:surface)[ $symbol $version ]($style)[](fg:surface)"
+
+[rust]
+symbol = "󱘗"
+style = "bg:surface fg:orange bold"
+format = "[](fg:surface)[ $symbol $version ]($style)[](fg:surface)"
+
+[golang]
+symbol = ""
+style = "bg:surface fg:cyan bold"
+format = "[](fg:surface)[ $symbol $version ]($style)[](fg:surface)"
+
 [cmd_duration]
-min_time = 2000
-style = "bg:#24283b fg:#e0af68 bold"
-format = " [](fg:#24283b)[ $duration]($style)[](fg:#24283b)"
+min_time = 800
+style = "bg:surface fg:orange bold"
+format = "[](fg:surface)[ 󰔛 $duration ]($style)[](fg:surface)"
 
-# ─────────────────────────────────────────
-# TIME
-# ─────────────────────────────────────────
 [time]
 disabled = false
 time_format = "%H:%M"
-style = "bg:#24283b fg:#7aa2f7 bold"
-format = " [](fg:#24283b)[ $time]($style)[](fg:#24283b)"
+style = "bg:surface fg:cyan bold"
+format = "[](fg:surface)[  $time ]($style)[](fg:surface)"
 
-# ─────────────────────────────────────────
-# CHARACTER
-# ─────────────────────────────────────────
 [character]
-success_symbol = "[❯](bold #7aa2f7)"
-error_symbol   = "[❯](bold #f7768e)"
-vicmd_symbol   = "[❮](bold #bb9af7)"
-format = " $symbol "
+success_symbol = "[❯](bold blue)"
+error_symbol = "[❯](bold red)"
+vimcmd_symbol = "[❮](bold magenta)"
