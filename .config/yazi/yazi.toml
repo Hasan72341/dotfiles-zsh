@@ -1,12 +1,14 @@
-[manager]
+[mgr]
 show_hidden = true
 sort_by = "natural"
 sort_sensitive = false
 sort_reverse = false
 sort_dir_first = true
+sort_translit = true
 linemode = "size"
 show_symlink = true
 scrolloff = 8
+mouse_events = [ "scroll" ]
 
 [preview]
 wrap = "yes"
@@ -15,7 +17,16 @@ max_width = 1600
 max_height = 1600
 image_delay = 20
 image_filter = "triangle"
+image_quality = 75
 cache_dir = ""
+
+[plugin]
+prepend_previewers = [
+  { mime = "application/pdf", run = "file" }
+]
+prepend_spotters = [
+  { mime = "application/pdf", run = "file" }
+]
 
 [opener]
 edit = [
@@ -33,5 +44,6 @@ prepend_rules = [
   { name = "*.md", use = "edit" },
   { name = "*.toml", use = "edit" },
   { name = "*.lua", use = "edit" },
-  { name = "*.zsh", use = "edit" }
+  { name = "*.zsh", use = "edit" },
+  { name = "*.pdf", use = "play" }
 ]
